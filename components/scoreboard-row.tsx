@@ -69,7 +69,7 @@ export function ScoreboardRow({ racer }: ScoreboardRowProps) {
         {racer.bestLapTime ? formatTime(racer.bestLapTime) : "-"}
       </td>
       <td className="px-4 py-3 text-right font-mono">
-        {racer.gapToLeader ? formatTime(racer.gapToLeader, true) : "-"}
+        {racer.gapToLeader ? formatTime(racer.gapToLeader) : "-"}
       </td>
       <td className="px-4 py-3 text-right font-mono">
         {racer.averageLapTime ? formatTime(racer.averageLapTime) : "-"}

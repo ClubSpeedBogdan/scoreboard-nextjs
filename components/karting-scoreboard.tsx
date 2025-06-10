@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { ScoreboardTable } from "@/components/scoreboard-table"
 import { RaceInfo } from "@/components/race-info"
 import { ConnectionControls } from "@/components/connection-controls"
 import { StatusIndicator } from "@/components/status-indicator"
 import { useKartingWebSocket } from "@/hooks/use-karting-websocket"
-import type { ScorecardData, ConnectionStatus } from "@/types/karting"
+import type { ScorecardData, ConnectionStatus, ScorecardRow } from "@/types/karting"
 import { Flag, Zap } from "lucide-react"
 
 export function KartingScoreboard() {
@@ -17,6 +17,7 @@ export function KartingScoreboard() {
   const [showMessages, setShowMessages] = useState(false)
   const [messages, setMessages] = useState<string[]>([])
   const lastUpdateTimeRef = useRef<Record<string, number>>({})
+  const previousDataRef = useRef<ScorecardData | null>(null)
 
   const { connect, disconnect, isConnecting } = useKartingWebSocket({
     onStatusChange: setConnectionStatus,
@@ -45,7 +46,7 @@ export function KartingScoreboard() {
     setMessages((prev) => [...prev.slice(-49), logMessage])
   }
 
-  const fetchRaceData = async (heatNo: string) => {
+  const fetchRaceData = useCallback(async (heatNo: string) => {
     try {
       const response = await fetch(`https://unified-data-api.resova.io/api/Heats/GetScorecard?heatNo=${heatNo}`)
 
@@ -57,13 +58,43 @@ export function KartingScoreboard() {
 
       if (data.scorecardRows) {
         const currentTime = Date.now()
-        data.scorecardRows.forEach((row: any) => {
+
+        // Compare with previous data to detect actual changes
+        data.scorecardRows.forEach((row: ScorecardRow) => {
           const rowId = `racer-${row.guestId}`
-          if (row.lapNum > 0) {
-            row.isUpdated = lastUpdateTimeRef.current[rowId] && currentTime - lastUpdateTimeRef.current[rowId] < 1000
+          const previousRow = previousDataRef.current?.scorecardRows?.find((r) => r.guestId === row.guestId)
+
+          // Only mark as updated if there's an actual change in meaningful data
+          const hasChanged =
+            !previousRow ||
+            previousRow.lapNum !== row.lapNum ||
+            previousRow.position !== row.position ||
+            previousRow.ambTime !== row.ambTime ||
+            previousRow.fastestLapTime !== row.fastestLapTime
+
+          if (hasChanged) {
+            row.isUpdated = true
             lastUpdateTimeRef.current[rowId] = currentTime
+
+            // Clear the update flag after 2 seconds
+            setTimeout(() => {
+              setScoreboardData((prevData) => {
+                if (!prevData) return prevData
+                return {
+                  ...prevData,
+                  scorecardRows: prevData.scorecardRows.map((r) =>
+                    r.guestId === row.guestId ? { ...r, isUpdated: false } : r,
+                  ),
+                }
+              })
+            }, 2000)
+          } else {
+            row.isUpdated = false
           }
         })
+
+        // Store current data as previous for next comparison
+        previousDataRef.current = JSON.parse(JSON.stringify(data))
       }
 
       setScoreboardData(data)
@@ -71,9 +102,9 @@ export function KartingScoreboard() {
       log(`Error fetching scorecard: ${error instanceof Error ? error.message : "Unknown error"}`)
       console.error("Fetch error:", error)
     }
-  }
+  }, [log])
 
-  const handleConnect = () => {
+  const handleConnect = useCallback(() => {
     if (!heatNumber) {
       alert("Please enter a heat number")
       return
@@ -82,11 +113,12 @@ export function KartingScoreboard() {
     const channel = `race_${heatNumber}`
     connect(`wss://unified-pub-sub.resova.io/ws?channel=${channel}`)
     fetchRaceData(heatNumber)
-  }
+  }, [heatNumber, connect, fetchRaceData])
 
   const handleDisconnect = () => {
     disconnect()
     setScoreboardData(null)
+    previousDataRef.current = null
   }
 
   const toggleConnection = () => {
@@ -118,7 +150,7 @@ export function KartingScoreboard() {
       document.removeEventListener("keydown", handleKeyDown)
       document.removeEventListener("keydown", handleEnterKey)
     }
-  }, [isConnected, heatNumber])
+  }, [isConnected, heatNumber, handleConnect])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">

@@ -1,7 +1,6 @@
 "use client"
 
 import type { ScorecardData } from "@/types/karting"
-import { formatTime } from "@/lib/format-time"
 import { Users, Trophy, Timer, Hash } from "lucide-react"
 
 interface RaceInfoProps {
@@ -15,10 +14,13 @@ export function RaceInfo({ heatNumber, scoreboardData }: RaceInfoProps) {
   const leader = scoreboardData.scorecardRows?.find((row) => row.position === 1)
   const leaderName = leader ? leader.nickname || `${leader.firstName} ${leader.lastName}` : "-"
 
+  // Find the best lap time from all racers
   let bestLapTime = Number.POSITIVE_INFINITY
+
   scoreboardData.scorecardRows?.forEach((row) => {
     const lapTime = Number.parseFloat(row.fastestLapTime)
-    if (lapTime && lapTime < bestLapTime) {
+    // Only consider reasonable lap times (between 0.01 and 300 seconds)
+    if (lapTime && lapTime > 0.01 && lapTime < 300 && lapTime < bestLapTime) {
       bestLapTime = lapTime
     }
   })
@@ -47,7 +49,7 @@ export function RaceInfo({ heatNumber, scoreboardData }: RaceInfoProps) {
     },
     {
       title: "Best Lap",
-      value: bestLapTime < Number.POSITIVE_INFINITY ? formatTime(bestLapTime) : "-",
+      value: bestLapTime < Number.POSITIVE_INFINITY ? `${bestLapTime.toFixed(3)}s` : "-",
       icon: <Timer className="h-6 w-6" />,
       gradient: "from-green-500 to-green-600",
       shadowColor: "shadow-green-500/25",
@@ -56,7 +58,7 @@ export function RaceInfo({ heatNumber, scoreboardData }: RaceInfoProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      {infoCards.map((card, index) => (
+      {infoCards.map((card) => (
         <div key={card.title} className="relative group">
           <div
             className={`absolute inset-0 bg-gradient-to-r ${card.gradient} rounded-2xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity duration-300`}

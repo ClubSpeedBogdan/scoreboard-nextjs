@@ -20,6 +20,17 @@ export interface Racer {
   averageLapTime: number | null // in milliseconds
 }
 
+interface RawRacerData {
+  id: string
+  name: string
+  kartNumber: number
+  position: number
+  currentLap: number
+  lastLapTime: number | null
+  bestLapTime: number | null
+  totalTime: number
+}
+
 interface ScoreboardProps {
   heatId: string
 }
@@ -84,7 +95,7 @@ export function Scoreboard({ heatId }: ScoreboardProps) {
   }, [lastMessage, racers])
 
   // Format racer data and calculate derived values
-  const formatRacerData = (racerData: any[]): Racer[] => {
+  const formatRacerData = (racerData: RawRacerData[]): Racer[] => {
     // Find the leader's time for gap calculation
     const leaderTime = racerData.find((r) => r.position === 1)?.totalTime || 0
 
