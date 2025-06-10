@@ -1,0 +1,2 @@
+# scoreboard-nextjs
+react scoreboard
