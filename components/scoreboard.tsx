@@ -70,7 +70,7 @@ export function Scoreboard({ heatId }: ScoreboardProps) {
   }, [heatId])
 
   // WebSocket connection for real-time updates
-  const { lastMessage, connectionStatus } = useWebSocket(`wss://your-server/ws?channel=race_${heatId}`)
+  const { lastMessage, connectionStatus } = useWebSocket(`wss://unified-pub-sub.resova.io/ws?channel=race_${heatId}`)
 
   // Process WebSocket messages
   useEffect(() => {

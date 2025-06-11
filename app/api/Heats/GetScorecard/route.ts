@@ -1,6 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-// This is a mock API endpoint that would normally fetch data from your database
+// Function to convert time string to milliseconds
+function timeStringToMs(timeStr: string): number | null {
+  if (!timeStr) return null;
+  // Assuming time format is "MM:SS.mmm" or "SS.mmm"
+  const parts = timeStr.split(':');
+  let minutes = 0;
+  let seconds = 0;
+  
+  if (parts.length === 2) {
+    minutes = parseInt(parts[0]);
+    seconds = parseFloat(parts[1]);
+  } else {
+    seconds = parseFloat(parts[0]);
+  }
+  
+  return (minutes * 60 * 1000) + (seconds * 1000);
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const heatNo = searchParams.get("heatNo")
@@ -9,73 +26,45 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Heat number is required" }, { status: 400 })
   }
 
-  // Mock data for demonstration
-  const mockData = {
-    heatId: heatNo,
-    status: "running",
-    racers: [
-      {
-        id: "1",
-        position: 1,
-        name: "Max Verstappen",
-        kartNumber: 33,
-        currentLap: 12,
-        lastLapTime: 45230, // 45.23 seconds
-        bestLapTime: 44890, // 44.89 seconds
-        totalTime: 540000, // 9 minutes
+  try {
+    // Fetch data from the unified data API
+    const response = await fetch(`https://unified-data-api.resova.io/api/Heats/GetScorecard?heatNo=${heatNo}`, {
+      headers: {
+        'Accept': 'application/json',
       },
-      {
-        id: "2",
-        position: 2,
-        name: "Lewis Hamilton",
-        kartNumber: 44,
-        currentLap: 12,
-        lastLapTime: 45450,
-        bestLapTime: 45120,
-        totalTime: 542300, // 9:02.30
-      },
-      {
-        id: "3",
-        position: 3,
-        name: "Charles Leclerc",
-        kartNumber: 16,
-        currentLap: 12,
-        lastLapTime: 45670,
-        bestLapTime: 45340,
-        totalTime: 544500,
-      },
-      {
-        id: "4",
-        position: 4,
-        name: "Lando Norris",
-        kartNumber: 4,
-        currentLap: 12,
-        lastLapTime: 45780,
-        bestLapTime: 45230,
-        totalTime: 546700,
-      },
-      {
-        id: "5",
-        position: 5,
-        name: "Carlos Sainz",
-        kartNumber: 55,
-        currentLap: 12,
-        lastLapTime: 45890,
-        bestLapTime: 45450,
-        totalTime: 548200,
-      },
-      {
-        id: "6",
-        position: 6,
-        name: "Fernando Alonso",
-        kartNumber: 14,
-        currentLap: 11,
-        lastLapTime: 46120,
-        bestLapTime: 45670,
-        totalTime: 550000,
-      },
-    ],
-  }
+    });
 
-  return NextResponse.json(mockData)
+    if (!response.ok) {
+      throw new Error(`Backend responded with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Transform the data to match frontend expectations
+    const transformedData = {
+      heatId: heatNo,
+      status: "running", // You might want to get this from your backend
+      racers: data.map((scorecard: any) => {
+        const row = scorecard.ScorecardRows[0]; // Get the first row for each scorecard
+        return {
+          id: row.GuestId.toString(),
+          position: row.Position,
+          name: `${row.FirstName} ${row.LastName}`.trim() || row.Nickname,
+          kartNumber: row.KartId,
+          currentLap: row.LapNum,
+          lastLapTime: timeStringToMs(row.LTime),
+          bestLapTime: timeStringToMs(row.FastestLapTime),
+          totalTime: timeStringToMs(row.AmbTime) || 0, // Using AmbTime as total time, fallback to 0
+        };
+      }).sort((a: any, b: any) => a.position - b.position), // Sort by position
+    };
+
+    return NextResponse.json(transformedData);
+  } catch (error) {
+    console.error('Error fetching scoreboard data:', error);
+    return NextResponse.json(
+      { error: "Failed to fetch scoreboard data" },
+      { status: 500 }
+    );
+  }
 }
